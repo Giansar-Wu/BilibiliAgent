@@ -393,7 +393,7 @@ class BilibiliAgent(object):
         # download video
         self.__download(url=video_url, path=path, filename=F"{title}_Video")
         filename = F"{path}/{title}"
-        subprocess.run(F"{BIN_PATH}/ffmpeg-5.1.1-essentials_build/bin/ffmpeg.exe -loglevel quiet -i {path}/{title}_Video -vcodec copy -map_metadata -1 -f mp4 {filename}", shell=True)
+        subprocess.run(F"{BIN_PATH}/ffmpeg.exe -loglevel quiet -i {path}/{title}_Video -vcodec copy -map_metadata -1 -f mp4 {filename}", shell=True)
         os.remove(F"{path}/{title}_Video")
         return filename
 
@@ -425,7 +425,7 @@ class BilibiliAgent(object):
             filename = f"{path}/{title}.mp4"
         else:
             filename = f"{path}/{title}.m4a"
-        subprocess.run(F"{BIN_PATH}/ffmpeg-5.1.1-essentials_build/bin/ffmpeg.exe -loglevel quiet -i {path}/{title}_Audio -acodec copy -map_metadata -1 {filename}", shell=True)
+        subprocess.run(F"{BIN_PATH}/ffmpeg.exe -loglevel quiet -i {path}/{title}_Audio -acodec copy -map_metadata -1 {filename}", shell=True)
         os.remove(F"{path}/{title}_Audio")
         return filename
 
@@ -441,7 +441,7 @@ class BilibiliAgent(object):
 
     def __merge(self, video_name: str, audio_name: str, output_name: str, format: str):
         print("Video and Audio are being combined...")
-        subprocess.run(F"{BIN_PATH}/ffmpeg-5.1.1-essentials_build/bin/ffmpeg.exe -loglevel quiet -i {video_name} -i {audio_name} -vcodec copy -acodec copy {video_name}.{format}", shell=True)
+        subprocess.run(F"{BIN_PATH}/ffmpeg.exe -loglevel quiet -i {video_name} -i {audio_name} -vcodec copy -acodec copy {video_name}.{format}", shell=True)
         os.remove(video_name)
         print("Combiantion accomplished!")
 
