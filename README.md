@@ -7,6 +7,6 @@ This tool uses [ffmpeg](https://ffmpeg.org) to merge videos and audios. You have
 
 # Platform
 |Platform|Verified|
-|:--------:|:--------:|
+|:---:|:---:|
 |Windows 10| ✓ |
 |Windows 11| ✓ |
