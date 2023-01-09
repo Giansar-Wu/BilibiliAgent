@@ -1,1 +1,8 @@
-ffmpeg.exe
+#ignore ffmpeg.exe
+/bin/ffmpeg.exe
+
+#ignore cookie.txt
+/resources/data/cookie.txt
+
+#ignore config.json
+config.json
