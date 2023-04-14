@@ -1,11 +1,9 @@
+#ignore ffmpeg dir
 bin/FFmpeg/
-#ignore ffmpeg.exe
-/bin/ffmpeg.exe
 
-#ignore cookie.txt
-/resources/data/cookie.txt
-
+#ignore data tmp
 resources/data/
 resources/tmp/
+
 #ignore config.json
 config.json
