@@ -16,11 +16,20 @@ from typing import Callable
 from PIL import Image,ImageTk
 from tqdm import tqdm
 
-PATH = os.path.abspath(os.path.dirname(__file__)).replace('\\','/')
+PATH = os.path.abspath(os.path.dirname(__file__))
 ROOT_PATH = os.path.dirname(PATH)
-BIN_PATH = F"{ROOT_PATH}/bin"
+BIN_PATH = os.path.join(ROOT_PATH, 'bin')
+TMP_PATH = os.path.join(ROOT_PATH, 'resources', 'tmp')
 # QR_IMG = F"{ROOT_PATH}/resources/data/qrcode.png"
-QR_IMG = F"{os.path.expanduser('~')}/qrcode.png"
+# QR_IMG = F"{os.path.expanduser('~')}/qrcode.png"
+QR_IMG = os.path.join(TMP_PATH, 'qrcode.png')
+CODECS_DICT={
+    'avc1':'AVC',
+    'hvc1':'HEVC',
+    'hev1':'HEVC',
+    'dvh1':'HEVC',
+    'av01':'AV1'
+}
 
 class ScanWindow(object):
     def __init__(self, width: int=250) -> None:
@@ -145,7 +154,9 @@ class MyThread(threading.Thread):
 
 class BilibiliAgent(object):
     def __init__(self) -> None:
+        self.__clean()
         self.set_headers()
+        self.setting()
         if os.path.exists(F"{ROOT_PATH}/resources/data/cookie.txt"):
             with open(F"{ROOT_PATH}/resources/data/cookie.txt", "r", encoding="utf-8") as f:
                 cookie = f.read()
@@ -158,6 +169,16 @@ class BilibiliAgent(object):
             print("账号已登录!")
         else:
             print("账号未登录!")
+
+    def setting(self):
+        config = os.path.join(ROOT_PATH, 'config.json')
+        if os.path.exists(config):
+            with open(config, 'r', encoding='utf-8') as f:
+                config_dict = json.load(f)
+            self.video_path = os.path.abspath(config_dict['video_path'])
+            self.save_audio = config_dict['save_audio']
+            if self.save_audio:
+                self.audio_path = os.path.abspath(config_dict['audio_path'])
 
     def set_headers(self, referer: str="https://www.bilibili.com/", cookie: str=""):
         headers = {}
@@ -262,7 +283,7 @@ class BilibiliAgent(object):
                 f.write(cookie)
         return message, cookie
 
-    def download(self, bv_or_url: str, video_path: str="", save_audio: bool=False, audio_path: str="", compatible: bool=False, debug: bool=False):
+    def download(self, bv_or_url: str, debug: bool=True):
         """Download from bilibili web.
 
         Args:
@@ -276,12 +297,6 @@ class BilibiliAgent(object):
         Returns:
             None
         """
-        if not video_path:
-            video_path = F"{ROOT_PATH}/downloads"
-            if not os.path.exists(video_path):
-                os.mkdir(video_path)
-        if not audio_path or not save_audio:
-            audio_path = video_path
         if len(bv_or_url) == 12 and bv_or_url[0:2].lower() == 'bv' and bv_or_url.isalnum():
             web_res = requests.get(url=F"https://www.bilibili.com/{bv_or_url}", headers=self.headers)
         elif bv_or_url[0:8].lower() =='https://':
@@ -293,7 +308,8 @@ class BilibiliAgent(object):
             print(F"链接出错，错误代码:{web_res.status_code}")
             return web_res.status_code
         web_res = html.unescape(web_res.text)
-
+        with open(os.path.join(ROOT_PATH, 'resources', 'data', F'page.html'), 'w', encoding='utf-8') as f:
+            f.write(web_res)
         # get brief title
         title = None
         title_re_list=[r'<title data-vue-meta="true">(.*?)</title>', r'<title>(.*?)</title>']
@@ -322,21 +338,20 @@ class BilibiliAgent(object):
             resource_info = resource_info[0]
         resource_info = json.loads(resource_info)
         # debug
-        if debug and not os.path.exists(F"{ROOT_PATH}/resources/data/{title}.json"):
-            with open(F"{ROOT_PATH}/resources/data/{title}.json", 'w', encoding='utf-8') as f:
+        if debug and not os.path.exists(os.path.join(ROOT_PATH, 'resources', 'data', F"{title}.json")):
+            with open(os.path.join(ROOT_PATH, 'resources', 'data', F"{title}.json"), 'w', encoding='utf-8') as f:
                 json.dump(resource_info, f, ensure_ascii=False)
         # get video's url
-        video_filename = self.__download_video(resource_info["data"], video_path, title)
+        video_filename = self.__download_video(resource_info["data"], title)
         # get audio
-        audio_filename = self.__download_audio(resource_info["data"]["dash"], audio_path, title)
+        audio_filename = self.__download_audio(resource_info["data"]["dash"], title)
+        # return 0
         # merge video adn audio
         if os.path.splitext(audio_filename)[-1] == '.flac':
-            out_format = 'mkv'
+            output_name = F"{title}.mkv"
         else:
-            out_format = 'mp4'
-        self.__merge(video_name=video_filename, audio_name=audio_filename, output_name=title, format=out_format)
-        if not save_audio:
-            os.remove(audio_filename)
+            output_name = F"{title}.mp4"
+        self.__output_video(video_name=video_filename, audio_name=audio_filename, output_name=output_name)
 
     def __character_replace(self, s: str):
         ret = []
@@ -359,93 +374,89 @@ class BilibiliAgent(object):
             return uchar
         return chr(inside_code)
 
-    def __download_video(self, data: dict, path: str, title: str):
-        video_list = data["dash"]["video"]
-        quality = {}
-        for tmp in data["support_formats"]:
-            quality[tmp["new_description"]] = tmp["quality"]
-        quality = sorted(quality.items(), key=lambda x:x[1], reverse=True)
-        video_info_list = []
-        for tmp in quality:
-            for info_tmp in video_list:
-                if info_tmp["id"] == tmp[1]:
-                    video_info_list.append(info_tmp)
-            if video_info_list:
-                print(F"The highest resolution that can be downloaded is [{tmp[0]}], and we will download it.")
-                break
+    def __download_video(self, data: dict, title: str):
+        video_dict = {}
+        for item in data['dash']['video']:
+            quality = item['id']
+            if quality not in video_dict:
+                video_dict[quality] = {}
+            codec = item['codecs'].split('.')[0]
+            video_dict[quality][codec] = [item['backup_url'][0], item['bandwidth'], F"{item['width']}×{item['height']}",item['frameRate']]
+        video_select_quality = video_dict[max(video_dict.keys())]
+        priority_dict = {'HEVC':1, 'AV1':2, 'AVC':3}
+        video_select_quality_sorted = {}
+        for codec in video_select_quality.keys():
+            if codec not in CODECS_DICT:
+                print(F"编解码器{codec}不在已知列表中！")
             else:
-                print(F"Can't get video with [{tmp[0]}]!")
-        video_info = {}
-        codec_list = [(0, "avc1", "AVC"), (1, "hvc1", "HEVC"), (2, "av01", "AV1"), (3, "hev1", "HEVC")]
-        priority = {}
-        # if compatible:
-        #     for tmp in codec_list:
-        #         priority[tmp[1]] = tmp[0]
-        # else:
-        for tmp in codec_list:
-            priority[tmp[1]] = len(codec_list) - tmp[0]
-        for tmp in video_info_list:
-            if not video_info:
-                video_info = tmp
-            elif priority[tmp["codecs"].split(".")[0]] < priority[video_info["codecs"].split(".")[0]]:
-                video_info = tmp
-        video_url = video_info["backupUrl"][0]
-        # download video
-        self.__download(url=video_url, path=path, filename=F"{title}_Video")
-        filename = F"{path}/{title}"
-        subprocess.run(F"{BIN_PATH}/ffmpeg.exe -loglevel quiet -i {path}/{title}_Video -vcodec copy -map_metadata -1 -f mp4 {filename}", shell=True)
-        os.remove(F"{path}/{title}_Video")
+                id_ = priority_dict[CODECS_DICT[codec]]
+                video_select_quality_sorted[id_] = video_select_quality[codec]
+                video_select_quality_sorted[id_].append(CODECS_DICT[codec])
+        video_ = video_select_quality_sorted[min(video_select_quality_sorted.keys())]
+        video_url = video_[0]
+        #download video
+        filename = F"{title}.mp4"
+        print(F"视频:{filename}:\n码率:{video_[1] / (1024*1024):.2f}Mbps\n分辨率:{video_[2]}\n帧率:{video_[3]}\n编码:{video_[4]}")
+        self.__download(url=video_url, filename=filename)
         return filename
 
-    def __download_audio(self, data_dash: dict, path: str, title: str):
+    def __download_audio(self, data_dash: dict, title: str):
         # get audio's url
-        audio_flac = False
-        audio_dolby = False
-        if data_dash["flac"]:
-            audio_list = [data_dash["flac"]["audio"]]
-            audio_flac = True
-        elif data_dash["dolby"]:
-            audio_list = data_dash["dolby"]["audio"]
-            audio_dolby = True
-        else:
-            audio_list = data_dash["audio"]
-        audio_info = {}
-        for tmp in audio_list:
-            if not audio_info:
-                audio_info = tmp
-            elif tmp["bandwidth"] >= audio_info["bandwidth"]:
-                audio_info = tmp
-        audio_url = audio_info["backup_url"][0]
+        audio_url_dict = {}
+        for data in data_dash['audio']:
+            bandwidth = data['bandwidth']
+            audio_url_dict[bandwidth] = (data['backup_url'][0], 'm4a')
+        if 'flac' in data_dash.keys():
+            if data_dash['flac']:
+                if data_dash['flac']['audio']:
+                    bandwidth = data_dash['flac']['audio']['bandwidth']
+                    audio_url_dict[bandwidth] = (data_dash['flac']['audio']['backup_url'][0], 'flac')
+        if 'dolby' in data_dash.keys():
+            if data_dash['dolby']:
+                if data_dash['dolby']['audio']:
+                    bandwidth = data_dash['dolby']['audio'][0]['bandwidth']
+                    audio_url_dict[bandwidth] = (data_dash['dolby']['audio'][0]['backup_url'][0], 'ec3')
+        bandwidth = max(audio_url_dict.keys())
+        audio_url = audio_url_dict[bandwidth][0]
+        audio_suffix = audio_url_dict[bandwidth][1]
         # download audio
-        print(F"The bitrate of audio which will be downloaded is {round(audio_info['bandwidth'] / 1024)}Kbps.")
-        self.__download(url=audio_url, path=path, filename=f"{title}_Audio")
-        if audio_flac:
-            filename = f"{path}/{title}.flac"
-        elif audio_dolby:
-            filename = f"{path}/{title}.mp4"
-        else:
-            filename = f"{path}/{title}.m4a"
-        subprocess.run(F"{BIN_PATH}/ffmpeg.exe -loglevel quiet -i {path}/{title}_Audio -acodec copy -map_metadata -1 {filename}", shell=True)
-        os.remove(F"{path}/{title}_Audio")
+        filename = F"{title}.{audio_suffix}"
+        print(F"音频:{filename}\n码率:{bandwidth / 1024:.2f}Kbps")
+        self.__download(url=audio_url, filename=filename)
         return filename
 
-    def __download(self, url: str, path: str, filename: str):
+    def __download(self, url: str, filename: str):
         with requests.get(url=url, headers=self.headers, stream=True) as resp:
             # type of headers:requests.structures.CaseInsensitiveDict(一种不区分大小写的字典)
             total = int(resp.headers.get('content-length', 0))
-            print(F"{filename}:")
-            with open(F"{path}/{filename}", 'wb') as file, tqdm(total=total, ncols=100, unit='iB', unit_scale=True,unit_divisor=1024) as bar:
+            print(F"下载中...")
+            with open(os.path.join(TMP_PATH, filename), 'wb') as file, tqdm(total=total, ncols=100, unit='iB', unit_scale=True,unit_divisor=1024) as bar:
                 for data in resp.iter_content(chunk_size=1024):
                     size = file.write(data)
                     bar.update(size)
+            print(F"下载完成")
 
-    def __merge(self, video_name: str, audio_name: str, output_name: str, format: str):
-        print("Video and Audio are being combined...")
-        subprocess.run(F"{BIN_PATH}/ffmpeg.exe -loglevel quiet -i {video_name} -i {audio_name} -vcodec copy -acodec copy {video_name}.{format}", shell=True)
-        os.remove(video_name)
+    def __output_video(self, video_name: str, audio_name: str, output_name: str):
+        ffmpeg = os.path.join(BIN_PATH, 'ffmpeg.exe')
+        # loglevel:'quiet, info, debug
+        loglevel = 'quiet'
+        video_file = os.path.join(TMP_PATH, video_name)
+        audio_file = os.path.join(TMP_PATH, audio_name)
+        out_file = os.path.join(self.video_path, output_name)
+        print("Combining...")
+        subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {video_file} -i {audio_file} -vcodec copy -acodec copy -map_metadata -1 {out_file}", shell=True)
         print("Combiantion accomplished!")
+        self.save_audio = True
+        if self.save_audio:
+            if audio_name.split('.')[-1] == 'ec3':
+                audio_out = os.path.join(self.audio_path, F"{audio_name.split('.')[0]}.mp4")
+            else:
+                audio_out = os.path.join(self.audio_path, audio_name)
+            subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {audio_file} -acodec copy -map_metadata -1 {audio_out}", shell=True)
 
-if __name__ == "__main__":
-    print(PATH)
-    print(ROOT_PATH)
-    print(BIN_PATH)
+    def __clean(self):
+        for root, dirs, files in os.walk(TMP_PATH, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
