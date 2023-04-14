@@ -460,3 +460,8 @@ class BilibiliAgent(object):
                 os.remove(os.path.join(root, name))
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
+
+if __name__ == "__main__":
+    url=input("url:")
+    agent = BilibiliAgent()
+    agent.download(url)
