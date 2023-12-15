@@ -1,0 +1,5 @@
+tqdm
+pyside6
+requests
+html
+json

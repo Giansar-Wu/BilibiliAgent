@@ -338,7 +338,8 @@ class BilibiliAgent(object):
             resource_info = resource_info[0]
         resource_info = json.loads(resource_info)
         # debug
-        if debug and not os.path.exists(os.path.join(ROOT_PATH, 'resources', 'data', F"{title}.json")):
+        # if debug and not os.path.exists(os.path.join(ROOT_PATH, 'resources', 'data', F"{title}.json")):
+        if debug:
             with open(os.path.join(ROOT_PATH, 'resources', 'data', F"{title}.json"), 'w', encoding='utf-8') as f:
                 json.dump(resource_info, f, ensure_ascii=False)
         # get video's url
@@ -392,7 +393,7 @@ class BilibiliAgent(object):
                 id_ = priority_dict[CODECS_DICT[codec]]
                 video_select_quality_sorted[id_] = video_select_quality[codec]
                 video_select_quality_sorted[id_].append(CODECS_DICT[codec])
-        video_ = video_select_quality_sorted[min(video_select_quality_sorted.keys())]
+        video_ = video_select_quality_sorted[max(video_select_quality_sorted.keys())]
         video_url = video_[0]
         #download video
         filename = F"{title}.mp4"
@@ -462,6 +463,6 @@ class BilibiliAgent(object):
                 os.rmdir(os.path.join(root, name))
 
 if __name__ == "__main__":
-    url=input("url:")
     agent = BilibiliAgent()
+    url=input("url:")
     agent.download(url)
