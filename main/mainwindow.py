@@ -14,7 +14,7 @@ class MyMainWindow(QMainWindow):
         super().__init__()
         screen = QGuiApplication.primaryScreen().geometry()
         self.setWindowTitle('Bilibili Video Downloader')
-        self.setFixedSize(int(screen.width()/2.7), int(screen.height()/3))
+        self.setFixedSize(int(screen.width()/2.5), int(screen.height()/3))
         icon = QIcon()
         icon.addFile(os.path.join(bilibili_agent2.ROOT_PATH, "resources", "icons", "bilibili.png"))
         self.setWindowIcon(icon)
@@ -187,11 +187,11 @@ class MyMainWindow(QMainWindow):
 
     def _download_event(self):
         # get video info
-        video_quality = self.video_quality_select.currentText()
-        video_codec = self.video_codec_select.currentText()
+        video_quality = bilibili_agent2.VIDEO_QUALITY_DICT_T[self.video_quality_select.currentText()]
+        video_codec = bilibili_agent2.CODEC_DICT_T[self.video_codec_select.currentText()]
         video = self.resolve_ret['videos'][video_quality][video_codec][0]
         # get audio
-        audio_quality = self.audio_quality_select.currentText()
+        audio_quality = bilibili_agent2.AUDIO_QUALITY_DICT_T[self.audio_quality_select.currentText()]
         audio = self.resolve_ret['audios'][audio_quality][0]
         # get path
         save_path = self.save_path_display.text()

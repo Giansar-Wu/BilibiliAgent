@@ -25,6 +25,11 @@ CODEC_DICT = {
     12:'HEVC',
     13:'AV1'
 }
+CODEC_DICT_T = {
+    'AVC':7,
+    'HEVC':12,
+    'AV1':13
+}
 VIDEO_QUALITY_DICT = {
     127:"超高清 8K",
     126:"杜比视界",
@@ -39,14 +44,6 @@ VIDEO_QUALITY_DICT = {
     16 :"流程 360P",
     6  :"极速240p"
 }
-AUDIO_QUALITY_DICT = {
-    30216:"64K",
-    30232:"132K",
-    30280:"192K",
-    30249:"192K", # for sort only
-    30250:"杜比全景声",
-    30251:"Hi-Res无损"
-}
 VIDEO_QUALITY_DICT_T = {
     "超高清 8K":127,
     "杜比视界":126,
@@ -60,6 +57,21 @@ VIDEO_QUALITY_DICT_T = {
     "清晰 480P":32 ,
     "流程 360P":16 ,
     "极速240p":6
+}
+AUDIO_QUALITY_DICT = {
+    30216:"64K",
+    30232:"132K",
+    30280:"192K",
+    30249:"192K", # for sort only
+    30250:"杜比全景声",
+    30251:"Hi-Res无损"
+}
+AUDIO_QUALITY_DICT_T = {
+    "64K":30216,
+    "132K":30232,
+    "192K":30280,
+    "杜比全景声":30250,
+    "Hi-Res无损":30251
 }
 
 class BilibiliAgent(object):
@@ -316,9 +328,3 @@ class BilibiliAgent(object):
         for character in Filename_Invalid_Character:
             s = s.replace(character, "_")
         return s
-
-if __name__ == '__main__':
-    url="https://www.bilibili.com/video/BV1mv4y1y7wG/?spm_id_from=333.337.search-card.all.click&vd_source=c85725ebe09080a8e373b08a2f30e440"
-    # url ="https://www.bilibili.com/video/BV1n3h45k1u5/"
-    agent = BilibiliAgent()
-    agent.get_info(url, True)
