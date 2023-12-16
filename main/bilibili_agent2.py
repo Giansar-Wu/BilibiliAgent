@@ -13,7 +13,12 @@ DEFAULT_OUT_DIR = os.path.join(USER_PATH, 'Desktop', 'Output')
 ROOT_PATH = os.path.dirname(PATH)
 BIN_PATH = os.path.join(ROOT_PATH, 'bin')
 TMP_PATH = os.path.join(ROOT_PATH, 'resources', 'tmp')
+DATA_PATH = os.path.join(ROOT_PATH, 'resources', 'data')
 QR_IMG = os.path.join(TMP_PATH, 'qrcode.png')
+if not os.path.exists(TMP_PATH):
+    os.makedirs(TMP_PATH)
+if not os.path.exists(DATA_PATH):
+    os.makedirs(DATA_PATH)
 
 VIP_TYPE_DICT = {
     0:"会员",
