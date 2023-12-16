@@ -3,6 +3,7 @@ import re
 import requests
 import html
 import json
+import qrcode
 from tqdm import tqdm
 import subprocess
 
@@ -12,6 +13,13 @@ DEFAULT_OUT_DIR = os.path.join(USER_PATH, 'Desktop', 'Output')
 ROOT_PATH = os.path.dirname(PATH)
 BIN_PATH = os.path.join(ROOT_PATH, 'bin')
 TMP_PATH = os.path.join(ROOT_PATH, 'resources', 'tmp')
+QR_IMG = os.path.join(TMP_PATH, 'qrcode.png')
+
+VIP_TYPE_DICT = {
+    0:"会员",
+    1:"大会员",
+    2:"年度大会员"
+}
 CODEC_DICT = {
     7:'AVC',
     12:'HEVC',
@@ -35,24 +43,110 @@ AUDIO_QUALITY_DICT = {
     30216:"64K",
     30232:"132K",
     30280:"192K",
+    30249:"192K", # for sort only
     30250:"杜比全景声",
     30251:"Hi-Res无损"
+}
+VIDEO_QUALITY_DICT_T = {
+    "超高清 8K":127,
+    "杜比视界":126,
+    "HDR 真彩色":125,
+    "超清 4K":120,
+    "高帧率 1080P60":116,
+    "高码率 1080P+":112,
+    "高清 1080P":80 ,
+    "高帧率 720P60":74 ,
+    "高清 720P":64 ,
+    "清晰 480P":32 ,
+    "流程 360P":16 ,
+    "极速240p":6
 }
 
 class BilibiliAgent(object):
     def __init__(self) -> None:
-        self.set_headers()
+        self._login_state = False
+        self.scan_state = 0
+        self.user_info = {}
+        # clean tmp
         self._clean()
-        pass
-
-    def set_headers(self, referer: str="https://www.bilibili.com/", cookie: str=""):
+        # check cookie
+        if os.path.exists(F"{ROOT_PATH}/resources/data/cookie.txt"):
+            with open(F"{ROOT_PATH}/resources/data/cookie.txt", "r", encoding="utf-8") as f:
+                cookie = f.read()
+            self._set_headers(cookie=cookie)
+            if not self._get_user_info():
+                self.logout()
+            else:
+                self._login_state = True
+    
+    def _set_headers(self, referer: str="https://www.bilibili.com/", cookie: str="") -> None:
         headers = {}
         # headers["user-agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36"
-        headers["user-agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0.3 Safari/605.1.15"
+        # headers["user-agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0.3 Safari/605.1.15"
+        headers["user-agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
         headers["referer"] = referer
-        headers['Cookie'] = cookie
+        headers["Cookie"] = cookie
         self.headers = headers
         # print(headers)
+    
+    def _get_user_info(self):
+        url = "https://api.bilibili.com/x/web-interface/nav"
+        res = requests.get(url=url, headers=self.headers).text
+        res = json.loads(res)
+        if res["code"] == 0:
+            self.user_info['uname'] = res["data"]["uname"]
+            self.user_info['level'] = res["data"]["level_info"]["current_level"]
+            self.user_info['vip'] = VIP_TYPE_DICT[res["data"]["vipType"]]
+            return True
+        elif res["code"] == -101:
+            self.user_info = {}
+            return False
+
+    def get_login_state(self) -> bool:
+        return self._login_state
+
+    def logout(self) -> None:
+        if os.path.exists(F"{ROOT_PATH}/resources/data/cookie.txt"):
+            os.remove(F"{ROOT_PATH}/resources/data/cookie.txt") 
+        self._set_headers()
+        self._get_user_info()
+        self._login_state = False
+
+    def get_qrcode(self):
+        logurl = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate"
+        res = requests.get(url=logurl, headers=self.headers).text
+        res = json.loads(res)
+        qr_img = qrcode.make(res["data"]["url"])
+        qr_img.save(QR_IMG)
+        self._qrcode_key = res["data"]["qrcode_key"]
+        self.get_scan_ret()
+
+    def get_scan_ret(self):
+        url = F"https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={self._qrcode_key}"
+        res = requests.get(url=url, headers=self.headers)
+        res_text = json.loads(res.text)
+        message = res_text["data"]["message"]
+        code = res_text["data"]["code"]
+        if code == 0:
+            cookie = res.headers["Set-Cookie"]
+            with open(F"{ROOT_PATH}/resources/data/cookie.txt", "w", encoding="utf-8") as f:
+                f.write(cookie)
+            self.scan_state = 10
+            self._set_headers(cookie=cookie)
+            self._get_user_info()
+            self._login_state = True
+        elif code == 86101:
+            self.scan_state = 1
+            self._login_state = False
+            print(message)
+        elif code == 86090:
+            self.scan_state = 2
+            self._login_state = False
+            print(message)
+        elif code == 86038:
+            self.scan_state = 3
+            self._login_state = False
+            print(message)
     
     def get_info(self,bv_or_url: str, debug: bool) -> (bool, dict):
         """200 success
@@ -77,7 +171,7 @@ class BilibiliAgent(object):
             return False, ret
         ret['bv'] = bv[0]
 
-        web_res = requests.get(url=F"https://www.bilibili.com/video/{ret['bv']}", headers=self.headers)
+        web_res = requests.get(url=F"https://www.bilibili.com/video/{ret['bv']}/", headers=self.headers)
         web_res = html.unescape(web_res.text)
         if debug:
             with open(os.path.join(TMP_PATH, F"{ret['bv']}.html"), 'w', encoding='utf-8') as f:
@@ -105,8 +199,8 @@ class BilibiliAgent(object):
         # video resolve
         videos = {}
         for unit_info in resource_info['data']['dash']['video']:
-            quality = VIDEO_QUALITY_DICT[unit_info['id']]
-            codec = CODEC_DICT[unit_info['codecid']]
+            quality = unit_info['id']
+            codec = unit_info['codecid']
             if quality not in videos.keys():
                 videos[quality] = {}
             if codec not in videos[quality].keys():
@@ -127,7 +221,7 @@ class BilibiliAgent(object):
         # audio resolve
         audios = {}
         for unit_info in resource_info['data']['dash']['audio']:
-            quality = AUDIO_QUALITY_DICT[unit_info['id']]
+            quality = unit_info['id']
             if quality not in audios.keys():
                 audios[quality] = []
             tmp = {}
@@ -138,7 +232,8 @@ class BilibiliAgent(object):
             audios[quality].append(tmp)
         # resolve flac
         if 'flac' in resource_info['data']['dash'].keys() and resource_info['data']['dash']['flac'] and resource_info['data']['dash']['flac']['audio']:
-            quality = AUDIO_QUALITY_DICT[unit_info['id']]
+            unit_info = resource_info['data']['dash']['flac']['audio']
+            quality = unit_info['id']
             if quality not in audios.keys():
                 audios[quality] = []
             tmp = {}
@@ -149,7 +244,8 @@ class BilibiliAgent(object):
             audios[quality].append(tmp)
         # resolve dolby
         if 'dolby' in resource_info['data']['dash'].keys() and resource_info['data']['dash']['dolby'] and resource_info['data']['dash']['dolby']['audio']:
-            quality = AUDIO_QUALITY_DICT[unit_info['id']]
+            unit_info = resource_info['data']['dash']['dolby']['audio']
+            quality = unit_info['id']
             if quality not in audios.keys():
                 audios[quality] = []
             tmp = {}
@@ -165,7 +261,7 @@ class BilibiliAgent(object):
         ret['audios'] = audios
         return True, ret
     
-    def download(self, video: dict, audio: dict, save_audio, out_path: str=DEFAULT_OUT_DIR):
+    def download(self, video: dict, audio: dict, save_audio, out_path: str=DEFAULT_OUT_DIR) -> None:
         # download video
         video_url = video['url']
         video_filename = F"{video['title']}.mp4"
@@ -180,7 +276,7 @@ class BilibiliAgent(object):
             out_filename = F"{video['title']}.mp4"
         self._output_video(video_filename, audio_filename, out_path, out_filename, save_audio)
 
-    def _download_unit(self, url: str, path: str, filename: str):
+    def _download_unit(self, url: str, path: str, filename: str) -> None:
         with requests.get(url=url, headers=self.headers, stream=True) as resp:
             # type of headers:requests.structures.CaseInsensitiveDict(一种不区分大小写的字典)
             total = int(resp.headers.get('content-length', 0))
@@ -191,7 +287,7 @@ class BilibiliAgent(object):
                     bar.update(size)
             print(F"下载完成")
     
-    def _output_video(self, video_name: str, audio_name: str, out_path: str, out_filename: str, save_audio: bool):
+    def _output_video(self, video_name: str, audio_name: str, out_path: str, out_filename: str, save_audio: bool) -> None:
         ffmpeg = os.path.join(BIN_PATH, 'ffmpeg.exe')
         # loglevel:'quiet, info, debug
         loglevel = 'quiet'
@@ -208,14 +304,14 @@ class BilibiliAgent(object):
                 audio_out = os.path.join(out_path, audio_name)
             subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {audio_file} -acodec copy -map_metadata -1 {audio_out}", shell=True)
 
-    def _clean(self):
+    def _clean(self) -> None:
         for root, dirs, files in os.walk(TMP_PATH, topdown=False):
             for name in files:
                 os.remove(os.path.join(root, name))
             for name in dirs:
                 os.rmdir(os.path.join(root, name))
 
-    def _filename_invalid_character_replace(self, s: str):
+    def _filename_invalid_character_replace(self, s: str) -> str:
         Filename_Invalid_Character = ('<', '>', '/', '\\', '|', ':', '*', '?','"', ' ')
         for character in Filename_Invalid_Character:
             s = s.replace(character, "_")

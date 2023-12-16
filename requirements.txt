@@ -1,3 +1,4 @@
 tqdm
 pyside6
 requests
+qrcode

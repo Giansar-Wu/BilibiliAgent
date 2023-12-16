@@ -5,5 +5,5 @@ bin/FFmpeg/
 resources/data/
 resources/tmp/
 
-#ignore config.json
-config.json
+#ignore test
+tests/
