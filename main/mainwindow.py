@@ -316,7 +316,7 @@ class ScanWorker(QObject):
         while self._runing:
             if self._end:
                 break
-            time.sleep(3)
+            time.sleep(2)
             self.agent.get_scan_ret()
             self._update_state(self.agent.scan_state)
 

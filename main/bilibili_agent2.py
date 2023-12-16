@@ -76,7 +76,6 @@ AUDIO_QUALITY_DICT_T = {
 
 class BilibiliAgent(object):
     def __init__(self) -> None:
-        self._login_state = False
         self.scan_state = 0
         self.user_info = {}
         # clean tmp
@@ -90,6 +89,9 @@ class BilibiliAgent(object):
                 self.logout()
             else:
                 self._login_state = True
+        else:
+            self._set_headers()
+            self._login_state = False
     
     def _set_headers(self, referer: str="https://www.bilibili.com/", cookie: str="") -> None:
         headers = {}
