@@ -186,7 +186,7 @@ class BilibiliAgent(object):
         # get bv
         bv = re.findall(r"[bB][vV][0-9a-zA-Z]{10}", bv_or_url)
         if len(bv) == 0:
-            print(F"请输入正确的BV号或者https链接！")
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 请输入正确的BV号或者https链接!")
             ret['code'] = 101
             return False, ret
         ret['bv'] = bv[0]
@@ -279,6 +279,7 @@ class BilibiliAgent(object):
             ret['code'] = 105
             return False, ret
         ret['audios'] = audios
+        print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 解析成功!")
         return True, ret
     
     def download(self, video: dict, audio: dict, save_audio, out_path: str=DEFAULT_OUT_DIR) -> None:

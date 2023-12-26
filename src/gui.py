@@ -208,9 +208,9 @@ class MyMainWindow(QMainWindow):
         save_path = self.save_path_display.text()
         # get save audio
         save_audio = self.audio_save_box.isChecked()
-        p = Thread(target=self.agent.download,args=(video, audio, save_audio, save_path))
-        p.daemon = True 
-        p.start()
+        self.download_thread = Thread(target=self.agent.download,args=(video, audio, save_audio, save_path))
+        self.download_thread.daemon = True 
+        self.download_thread.start()
         # self.agent.download(video, audio, save_path)
 
     def _write_log_info(self, text: str):
