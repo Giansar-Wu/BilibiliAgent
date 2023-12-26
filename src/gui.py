@@ -1,11 +1,12 @@
 import os
 import sys
 import time
-from multiprocessing import Process
+import datetime
+from threading import Thread
 
 from PySide6.QtCore import Qt, QSize, QObject, Signal, QThread
-from PySide6.QtGui import QCloseEvent, QIcon, QGuiApplication, QPixmap, QColor, QImage, QPainter
-from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QGridLayout, QLineEdit, QComboBox, QLabel, QCheckBox,  QFileDialog, QPushButton, QTextBrowser
+from PySide6.QtGui import QCloseEvent, QIcon, QGuiApplication, QPixmap, QColor, QImage, QPainter, QTextCursor
+from PySide6.QtWidgets import QMainWindow, QApplication, QWidget, QGridLayout, QLineEdit, QComboBox, QLabel, QCheckBox,  QFileDialog, QPushButton, QTextEdit
 
 import bilibili_agent2
 
@@ -25,14 +26,22 @@ class MyMainWindow(QMainWindow):
         self.agent = bilibili_agent2.BilibiliAgent()
         self._update_login()
 
+        self.stream = Stream()
+        self.stream.stream_update.connect(self._write_log_info)
+        sys.stdout = self.stream
+        sys.stderr = self.stream
+
+        print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Bilibili Downloader start!")
+
     def _init_ui(self):
-        cols=8
+        cols = 10
         self.central_layout = QGridLayout(self.central_widget)
         self.central_widget.setLayout(self.central_layout)
 
         for i in range(cols):
-            self.central_layout.setColumnMinimumWidth(i,1)
-            self.central_layout.setColumnStretch(i,1)
+            self.central_layout.setColumnMinimumWidth(i, 1)
+            self.central_layout.setColumnStretch(i, 1)
+
         # login button
         self.login_button = QPushButton(self.central_widget)
         self.central_layout.addWidget(self.login_button, 0, 0, 1, 1)
@@ -119,7 +128,8 @@ class MyMainWindow(QMainWindow):
         self.central_layout.addWidget(self.download_button, 4, 9, 1, 1)
 
         # log display
-        self.log_display = QTextBrowser(self.central_widget)
+        self.log_display = QTextEdit(self.central_widget)
+        self.log_display.setReadOnly(True)
         self.central_layout.addWidget(self.log_display, 5, 0, 4, 10)
 
     def _connect(self):
@@ -128,7 +138,7 @@ class MyMainWindow(QMainWindow):
         self.save_path_button.clicked.connect(self._select_save_path_event)
         self.download_button.clicked.connect(self._download_event)
         self.login_button.clicked.connect(self._login_event)
-    
+
     def _update_login(self):
         login = self.agent.get_login_state()
         if login:
@@ -197,10 +207,17 @@ class MyMainWindow(QMainWindow):
         save_path = self.save_path_display.text()
         # get save audio
         save_audio = self.audio_save_box.isChecked()
-        p = Process(target=self.agent.download,args=(video, audio, save_audio, save_path))
+        p = Thread(target=self.agent.download,args=(video, audio, save_audio, save_path))
         p.daemon = True 
         p.start()
         # self.agent.download(video, audio, save_path)
+
+    def _write_log_info(self, text: str):
+        log_cursor = self.log_display.textCursor()
+        log_cursor.movePosition(QTextCursor.End)
+        log_cursor.insertText(text)
+        self.log_display.setTextCursor(log_cursor)
+        self.log_display.ensureCursorVisible()
     
 class MyQRWindow(QMainWindow):
     finish = Signal()
@@ -337,8 +354,15 @@ class ScanWorker(QObject):
         self._runing = False
         self._end = False
 
+class Stream(QObject):
+    stream_update = Signal(str)
+
+    def write(self, text: str):
+        self.stream_update.emit(text)
+
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
+    # app = QApplication(sys.argv)
+    app = QApplication()
     win = MyMainWindow()
     win.show()
     app.exec()

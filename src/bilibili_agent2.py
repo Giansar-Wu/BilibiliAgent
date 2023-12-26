@@ -3,6 +3,7 @@ import re
 import requests
 import html
 import json
+import datetime
 import qrcode
 from tqdm import tqdm
 import subprocess
@@ -157,15 +158,15 @@ class BilibiliAgent(object):
         elif code == 86101:
             self.scan_state = 1
             self._login_state = False
-            print(message)
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}!")
         elif code == 86090:
             self.scan_state = 2
             self._login_state = False
-            print(message)
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}!")
         elif code == 86038:
             self.scan_state = 3
             self._login_state = False
-            print(message)
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}!")
     
     def get_info(self,bv_or_url: str, debug: bool) -> (bool, dict):
         """200 success
@@ -199,7 +200,7 @@ class BilibiliAgent(object):
         # get title
         title = re.findall(r"<h1.*>(.*?)</h1>", web_res)
         if len(title) == 0:
-            print(F"链接无效！")
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 链接无效!")
             ret['code'] = 102
             return False, ret
         ret['title'] = self._filename_invalid_character_replace(title[0])
@@ -207,7 +208,7 @@ class BilibiliAgent(object):
         # get resource info
         resource_info = re.findall(r"(?<=<script>window.__playinfo__=).*?(?=</script>)", web_res)
         if len(resource_info) == 0:
-            print(F"解析失败:")
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 解析失败!")
             ret['code'] = 103
             return False, ret
         resource_info = json.loads(resource_info[0])
@@ -232,7 +233,7 @@ class BilibiliAgent(object):
             tmp['framerate'] = unit_info['frame_rate']
             videos[quality][codec].append(tmp)
         if len(videos) == 0:
-            print(F"无视频源！")
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 无视频源!")
             ret['code'] = 104
             return False, ret
         ret['videos'] = videos
@@ -274,7 +275,7 @@ class BilibiliAgent(object):
             tmp['suffix'] = 'ec3'
             audios[quality].append(tmp)
         if len(audios) == 0:
-            print(F"无音频源！")
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 无音频源!")
             ret['code'] = 105
             return False, ret
         ret['audios'] = audios
@@ -299,12 +300,12 @@ class BilibiliAgent(object):
         with requests.get(url=url, headers=self.headers, stream=True) as resp:
             # type of headers:requests.structures.CaseInsensitiveDict(一种不区分大小写的字典)
             total = int(resp.headers.get('content-length', 0))
-            print(F"下载中...")
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Downloading...")
             with open(os.path.join(path, filename), 'wb') as file, tqdm(total=total, ncols=100, unit='iB', unit_scale=True,unit_divisor=1024) as bar:
                 for data in resp.iter_content(chunk_size=1024):
                     size = file.write(data)
                     bar.update(size)
-            print(F"下载完成")
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Download accomplished!")
     
     def _output_video(self, video_name: str, audio_name: str, out_path: str, out_filename: str, save_audio: bool) -> None:
         ffmpeg = os.path.join(BIN_PATH, 'ffmpeg.exe')
@@ -313,9 +314,9 @@ class BilibiliAgent(object):
         video_file = os.path.join(TMP_PATH, video_name)
         audio_file = os.path.join(TMP_PATH, audio_name)
         out_file = os.path.join(out_path, out_filename)
-        print("Combining...")
+        print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Combining...")
         subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {video_file} -i {audio_file} -vcodec copy -acodec copy -map_metadata -1 {out_file}", shell=True)
-        print("Combiantion accomplished!")
+        print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Combiantion accomplished!")
         if save_audio:
             if audio_name.split('.')[-1] == 'ec3':
                 audio_out = os.path.join(out_path, F"{audio_name.split('.')[0]}.mp4")
