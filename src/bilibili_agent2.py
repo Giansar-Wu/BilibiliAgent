@@ -285,27 +285,27 @@ class BilibiliAgent(object):
         # download video
         video_url = video['url']
         video_filename = F"{video['title']}.mp4"
-        self._download_unit(video_url, TMP_PATH, video_filename)
+        self._download_unit(video_url, TMP_PATH, video_filename, 'Video')
         # download audio
         audio_url = audio['url']
         audio_filename = F"{audio['title']}.{audio['suffix']}"
-        self._download_unit(audio_url, TMP_PATH, audio_filename)
+        self._download_unit(audio_url, TMP_PATH, audio_filename, 'Audio')
         if os.path.splitext(audio_filename)[-1] == '.flac':
             out_filename = F"{video['title']}.mkv"
         else:
             out_filename = F"{video['title']}.mp4"
         self._output_video(video_filename, audio_filename, out_path, out_filename, save_audio)
 
-    def _download_unit(self, url: str, path: str, filename: str) -> None:
+    def _download_unit(self, url: str, path: str, filename: str, category: str) -> None:
         with requests.get(url=url, headers=self.headers, stream=True) as resp:
             # type of headers:requests.structures.CaseInsensitiveDict(一种不区分大小写的字典)
             total = int(resp.headers.get('content-length', 0))
-            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Downloading...")
-            with open(os.path.join(path, filename), 'wb') as file, tqdm(total=total, ncols=100, unit='iB', unit_scale=True,unit_divisor=1024) as bar:
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {category} download started:")
+            with open(os.path.join(path, filename), 'wb') as file, tqdm(desc=category, total=total, ncols=100, mininterval = 0.3, unit='iB', unit_scale=True, unit_divisor=1024) as bar:
                 for data in resp.iter_content(chunk_size=1024):
                     size = file.write(data)
                     bar.update(size)
-            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Download accomplished!")
+            print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {category} download accomplished!")
     
     def _output_video(self, video_name: str, audio_name: str, out_path: str, out_filename: str, save_audio: bool) -> None:
         ffmpeg = os.path.join(BIN_PATH, 'ffmpeg.exe')

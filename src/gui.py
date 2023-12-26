@@ -31,6 +31,7 @@ class MyMainWindow(QMainWindow):
         sys.stdout = self.stream
         sys.stderr = self.stream
 
+        self.stream_update_state = 0
         print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Bilibili Downloader start!")
 
     def _init_ui(self):
@@ -215,6 +216,14 @@ class MyMainWindow(QMainWindow):
     def _write_log_info(self, text: str):
         log_cursor = self.log_display.textCursor()
         log_cursor.movePosition(QTextCursor.End)
+        if text.endswith("\n"):
+            self.stream_update_state = 0
+        else:
+            if self.stream_update_state == 1:
+                log_cursor.select(QTextCursor.BlockUnderCursor)
+                log_cursor.removeSelectedText()
+            self.stream_update_state = 1
+
         log_cursor.insertText(text)
         self.log_display.setTextCursor(log_cursor)
         self.log_display.ensureCursorVisible()
