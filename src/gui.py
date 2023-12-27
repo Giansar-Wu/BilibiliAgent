@@ -196,7 +196,11 @@ class MyMainWindow(QMainWindow):
         if filepath != "":
             self.save_path_display.setText(filepath)
 
+    def _change_download_button(self):
+        self.download_button.setEnabled(True)
+
     def _download_event(self):
+        self.download_button.setEnabled(False)
         # get video info
         video_quality = bilibili_agent2.VIDEO_QUALITY_DICT_T[self.video_quality_select.currentText()]
         video_codec = bilibili_agent2.CODEC_DICT_T[self.video_codec_select.currentText()]
@@ -208,10 +212,13 @@ class MyMainWindow(QMainWindow):
         save_path = self.save_path_display.text()
         # get save audio
         save_audio = self.audio_save_box.isChecked()
-        self.download_thread = Thread(target=self.agent.download,args=(video, audio, save_audio, save_path))
-        self.download_thread.daemon = True 
+        self.download_thread = Thread(target=self._download, args=(video, audio, save_audio, save_path), daemon=True)
         self.download_thread.start()
         # self.agent.download(video, audio, save_path)
+    
+    def _download(self,video, audio, save_audio, save_path):
+        self.agent.download(video, audio, save_audio, save_path)
+        self._change_download_button()
 
     def _write_log_info(self, text: str):
         log_cursor = self.log_display.textCursor()
@@ -236,7 +243,7 @@ class MyQRWindow(QMainWindow):
         self.setFixedSize(250,250)
         x = parent.x()
         y = parent.y()
-        self.move(x + 80, y + 45)
+        self.move(x + 230, y + 50)
         icon = QIcon()
         icon.addFile(os.path.join(bilibili_agent2.ROOT_PATH, "resources", "icons", "bilibili.png"))
         self.setWindowIcon(icon)
