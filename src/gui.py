@@ -15,7 +15,7 @@ class MyMainWindow(QMainWindow):
         super().__init__()
         screen = QGuiApplication.primaryScreen().geometry()
         self.setWindowTitle('Bilibili Video Downloader')
-        self.setFixedSize(int(screen.width()/2.5), int(screen.height()/3))
+        self.setFixedSize(int(screen.width()/2.2), int(screen.height()/3))
         icon = QIcon()
         icon.addFile(os.path.join(bilibili_agent2.ROOT_PATH, "resources", "icons", "bilibili.png"))
         self.setWindowIcon(icon)
@@ -32,6 +32,7 @@ class MyMainWindow(QMainWindow):
         sys.stderr = self.stream
 
         self.stream_update_state = 0
+        self.video_quality_change_connect = False
         print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Bilibili Downloader start!")
 
     def _init_ui(self):
@@ -135,7 +136,6 @@ class MyMainWindow(QMainWindow):
 
     def _connect(self):
         self.get_info_button.clicked.connect(self._bv_resolve_event)
-        self.video_quality_select.currentTextChanged.connect(self._video_quality_change)
         self.save_path_button.clicked.connect(self._select_save_path_event)
         self.download_button.clicked.connect(self._download_event)
         self.login_button.clicked.connect(self._login_event)
@@ -153,12 +153,20 @@ class MyMainWindow(QMainWindow):
         self.resolve_ret = resolve_ret
         # set title
         self.title_display.setText(resolve_ret['title'])
+        if self.video_quality_change_connect:
+            self.video_quality_select.currentTextChanged.disconnect(self._video_quality_change)
+            self.video_quality_change_connect = False
         # set video
         self.video_quality_select.clear() 
         tmp = sorted(list(resolve_ret['videos'].keys()),reverse=True)
         video_quality = [bilibili_agent2.VIDEO_QUALITY_DICT[x] for x in tmp]
         self.video_quality_select.addItems(video_quality)
         self.video_quality_select.setCurrentIndex(0)
+        current_quality = bilibili_agent2.VIDEO_QUALITY_DICT_T[self.video_quality_select.currentText()]
+        self.video_codec_select.clear()
+        codec_list = sorted(list(self.resolve_ret['videos'][current_quality].keys()))
+        codec_list = [bilibili_agent2.CODEC_DICT[x] for x in codec_list]
+        self.video_codec_select.addItems(codec_list)
         # set audio
         self.audio_quality_select.clear()
         tmp = [x if x!=30280 else 30249 for x in list(resolve_ret['audios'].keys())]
@@ -166,6 +174,9 @@ class MyMainWindow(QMainWindow):
         audio_quality = [bilibili_agent2.AUDIO_QUALITY_DICT[x] for x in tmp]
         self.audio_quality_select.addItems(audio_quality)
         self.audio_quality_select.setCurrentIndex(0)
+
+        self.video_quality_select.currentTextChanged.connect(self._video_quality_change)
+        self.video_quality_change_connect = True
     
     def _video_quality_change(self):
         current_quality = bilibili_agent2.VIDEO_QUALITY_DICT_T[self.video_quality_select.currentText()]

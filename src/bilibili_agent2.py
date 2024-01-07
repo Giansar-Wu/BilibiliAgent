@@ -1,9 +1,11 @@
 import os
 import re
+import hashlib
+import datetime
+import shutil
 import requests
 import html
 import json
-import datetime
 import qrcode
 from tqdm import tqdm
 import subprocess
@@ -283,18 +285,21 @@ class BilibiliAgent(object):
         return True, ret
     
     def download(self, video: dict, audio: dict, save_audio, out_path: str=DEFAULT_OUT_DIR) -> None:
+        title = video['title']
+        hash_title_object = hashlib.md5(title.encode())
+        hash_title = hash_title_object.hexdigest()
         # download video
         video_url = video['url']
-        video_filename = F"{video['title']}.mp4"
+        video_filename = F"{hash_title}.mp4"
         self._download_unit(video_url, TMP_PATH, video_filename, 'Video')
         # download audio
         audio_url = audio['url']
-        audio_filename = F"{audio['title']}.{audio['suffix']}"
+        audio_filename = F"{hash_title}.{audio['suffix']}"
         self._download_unit(audio_url, TMP_PATH, audio_filename, 'Audio')
         if os.path.splitext(audio_filename)[-1] == '.flac':
-            out_filename = F"{video['title']}.mkv"
+            out_filename = F"{title}.mkv"
         else:
-            out_filename = F"{video['title']}.mp4"
+            out_filename = F"{title}.mp4"
         self._output_video(video_filename, audio_filename, out_path, out_filename, save_audio)
 
     def _download_unit(self, url: str, path: str, filename: str, category: str) -> None:
@@ -314,16 +319,22 @@ class BilibiliAgent(object):
         loglevel = 'quiet'
         video_file = os.path.join(TMP_PATH, video_name)
         audio_file = os.path.join(TMP_PATH, audio_name)
+        ffmpeg_out_file = os.path.join(out_path, F"{video_name.split('.')[0]}.{out_filename.split('.')[1]}")
         out_file = os.path.join(out_path, out_filename)
         print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Combining...")
-        subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {video_file} -i {audio_file} -vcodec copy -acodec copy -map_metadata -1 {out_file}", shell=True)
+        subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {video_file} -i {audio_file} -vcodec copy -acodec copy -map_metadata -1 {ffmpeg_out_file}", shell=True)
+        shutil.move(ffmpeg_out_file, out_file)
         print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Combiantion accomplished!")
         if save_audio:
             if audio_name.split('.')[-1] == 'ec3':
                 audio_out = os.path.join(out_path, F"{audio_name.split('.')[0]}.mp4")
+                subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {audio_file} -acodec copy -map_metadata -1 {audio_out}", shell=True)
+                audio_out_new = os.path.join(out_path, F"{out_filename.split('.')[0]}.mp4")
+                shutil.move(audio_out, audio_out_new)
             else:
-                audio_out = os.path.join(out_path, audio_name)
-            subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {audio_file} -acodec copy -map_metadata -1 {audio_out}", shell=True)
+                audio_out_new = os.path.join(out_path, F"{out_filename.split('.')[0]}.{audio_name.split('.')[1]}")
+                shutil.move(audio_file, audio_out_new)
+            
 
     def _clean(self) -> None:
         for root, dirs, files in os.walk(TMP_PATH, topdown=False):
@@ -333,7 +344,7 @@ class BilibiliAgent(object):
                 os.rmdir(os.path.join(root, name))
 
     def _filename_invalid_character_replace(self, s: str) -> str:
-        Filename_Invalid_Character = ('<', '>', '/', '\\', '|', ':', '*', '?','"', ' ')
+        Filename_Invalid_Character = ('<', '>', '/', '\\', '|', ':', '*', '?','"')
         for character in Filename_Invalid_Character:
-            s = s.replace(character, "_")
+            s = s.replace(character, "")
         return s
