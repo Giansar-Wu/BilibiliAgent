@@ -327,13 +327,13 @@ class BilibiliAgent(object):
         print(F"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Combiantion accomplished!")
         if save_audio:
             if audio_name.split('.')[-1] == 'ec3':
-                audio_out = os.path.join(out_path, F"{audio_name.split('.')[0]}.mp4")
-                subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {audio_file} -acodec copy -map_metadata -1 {audio_out}", shell=True)
+                audio_out = os.path.join(out_path, F"audio_tmp.mp4")
                 audio_out_new = os.path.join(out_path, F"{out_filename.split('.')[0]}.mp4")
-                shutil.move(audio_out, audio_out_new)
             else:
+                audio_out = os.path.join(out_path, F"audio_tmp.{audio_name.split('.')[1]}")
                 audio_out_new = os.path.join(out_path, F"{out_filename.split('.')[0]}.{audio_name.split('.')[1]}")
-                shutil.move(audio_file, audio_out_new)
+            subprocess.run(F"{ffmpeg} -loglevel {loglevel} -y -i {audio_file} -acodec copy -map_metadata -1 {audio_out}", shell=True)
+            shutil.move(audio_out, audio_out_new)
             
 
     def _clean(self) -> None:
